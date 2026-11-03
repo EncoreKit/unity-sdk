@@ -1,0 +1,8 @@
+{
+  "name": "EncoreKit.GameHarness",
+  "rootNamespace": "EncoreKit.GameHarness",
+  "references": ["EncoreKit", "UnityEngine.UI"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

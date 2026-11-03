@@ -1,0 +1,8 @@
+{
+  "name": "EncoreKit.GameHarness.Editor",
+  "rootNamespace": "EncoreKit.GameHarness.Editor",
+  "references": ["EncoreKit.GameHarness"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

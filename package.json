@@ -1,0 +1,18 @@
+{
+  "name": "com.encorekit.unity",
+  "version": "2.5.0",
+  "displayName": "Encore",
+  "description": "Encore for Unity. A C# API over the native Encore Android and iOS SDKs, and the Encore web SDK for WebGL.",
+  "unity": "2022.3",
+  "samples": [
+    {
+      "displayName": "Game Harness",
+      "description": "A simulated daily rewards screen with the gift button and reward placements, in portrait and landscape.",
+      "path": "Samples~/GameHarness"
+    }
+  ],
+  "author": {
+    "name": "Encore",
+    "url": "https://encorekit.com"
+  }
+}
