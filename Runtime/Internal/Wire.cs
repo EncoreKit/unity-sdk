@@ -117,8 +117,18 @@ namespace EncoreKit.Internal
                 });
             }
             json.Field("backgroundEndColor", a.BackgroundEndColor);
+            if (a.Sheet != null)
+            {
+                var sheet = new JsonWriter();
+                sheet.Field("headingFontFamily", Font(a.Sheet.HeadingFontFamily));
+                sheet.Field("bodyFontFamily", Font(a.Sheet.BodyFontFamily));
+                if (!sheet.IsEmpty) json.Raw("sheet", sheet.ToString());
+            }
             return json.ToString();
         }
+
+        // A blank family is none.
+        private static string Font(string family) => string.IsNullOrWhiteSpace(family) ? null : family.Trim();
 
         private static string Reward(PublisherReward r)
         {

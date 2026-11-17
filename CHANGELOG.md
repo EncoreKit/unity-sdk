@@ -4,6 +4,33 @@ All notable changes to `com.encorekit.unity`. `make release` turns the Unrelease
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-16
+
+### Added
+
+- `AppearanceConfig.Sheet`, a `SheetAppearance` with `HeadingFontFamily` and `BodyFontFamily`: the reward sheet's fonts,
+  by the name the font has natively (an iOS font listed under `UIAppFonts`, an Android `res/font` resource). Android and
+  iOS; needs the native 2.6.0 SDKs. WebGL ignores it. A blank or unknown name draws the system font.
+
+### Changed
+
+- Native pins: `com.encorekit:encore` 2.6.0, the `EncoreKit` 2.6.0 pod (from the `EncoreKit/cocoapods-specs` spec repo,
+  as in 2.5.0), and `@encorekit/web-sdk` 2.6.0 for WebGL.
+- From the 2.6.0 native and web SDKs: the reward sheet draws the skin set for your game on Encore's side (colours,
+  corners, borders and images per component) while the skin is on for the game, and its motion (entrances, finite
+  loops, moves between screens and Lottie files) comes from the served look, with no call. On Android and iOS, with
+  no skin the sheet draws exactly as before, and Lottie plays only when the game links it (lottie-ios 4.x,
+  `com.airbnb.android:lottie` 5.2 or later); without it, the element draws as before.
+- WebGL: web SDK 2.6.0 also changes three sheet looks with no skin. A sheet's colours no longer carry over to the next
+  sheet, text on a light accent colour is black or white by contrast instead of always white, and a gift button's
+  accent colour now reaches the sheet it opens.
+- From the 2.6.0 native SDKs: a "Yes, I did it" alone no longer counts as a completion, so a gift button or claim
+  reminder that hides or thanks after a completion waits until the claim is verified or granted. Android and iOS.
+- Server behaviour, on any version: a user whose age you send is under 13 gets no offers.
+- WebGL: web SDK 2.6.0 does not configure with an API key that is not a `pk_live_` or `pk_test_` key (or a legacy
+  `encore_` or `enc_pub_` key), so a placeholder key shows no sheet. The package does not read that answer yet, so
+  `Encore.IsConfigured` is still true.
+
 ## [2.5.0] - 2026-11-03
 
 ### Added

@@ -8,7 +8,7 @@ A C# API over the native Encore Android and iOS SDKs, and over the Encore web SD
 - [External Dependency Manager for Unity](https://openupm.com/packages/com.google.external-dependency-manager/). It reads `Editor/EncoreDependencies.xml`, which pins the native SDKs. Without it, the native SDKs are not added to the build.
 - Android: minimum API level 24 and target API level 35.
 - iOS: deployment target 15.0.
-- WebGL: tested on Unity 6.3 in desktop Chrome, iOS Safari and Android Chrome, and in a cross-origin iframe on iOS Safari. On a phone in landscape the offer sheet shows no offers, so present offers in portrait there. The package bundles `@encorekit/web-sdk` 2.4.0 (`Runtime/Plugins/WebGL/encore-web-sdk.jspre`), so no template change is needed. Unity 2022.3 does not support mobile browsers.
+- WebGL: tested on Unity 6.3 in desktop Chrome, iOS Safari and Android Chrome, and in a cross-origin iframe on iOS Safari. On a phone in landscape the offer sheet opens as a column in the middle of the screen. The package bundles `@encorekit/web-sdk` 2.6.0 (`Runtime/Plugins/WebGL/encore-web-sdk.jspre`), so no template change is needed. Unity 2022.3 does not support mobile browsers.
 
 ## Install
 
@@ -34,31 +34,50 @@ if (result.Claim?.TransactionId is string transactionId)
 }
 ```
 
-Served looks also read brand colours and your own prize, on Android, iOS and WebGL (where the web SDK does not draw or grant the prize yet):
+Served looks also read your brand colours, on Android, iOS and WebGL:
 
 ```csharp
 var result = await Encore.Placement("level_complete")
     .UseCase(UseCase.RewardUsers)
     .Appearance(new AppearanceConfig { AccentColor = "#FF8800", BackgroundColor = "#1B2A41", TextColor = "#FFFFFF" })
-    .PublisherReward(new PublisherReward { Id = "coins_100", Title = "100 coins" })
     .ShowAsync();
-
-// Grant the prize only when the player said they finished and Encore granted it.
-if (result.Claim?.UserConfirmedCompletion == true) GrantCoins(100);
 ```
+
+### Sheet fonts
+
+The reward sheet takes two fonts, on Android and iOS: `HeadingFontFamily` for the text your sheet style in the Encore
+portal marks as heading (such as the title and the primary button), and `BodyFontFamily` for all other text. A Unity
+font asset is not a native font, so register the font with each platform and pass the name it has there:
+
+```csharp
+.Appearance(new AppearanceConfig
+{
+    Sheet = new SheetAppearance { HeadingFontFamily = "LuckiestGuy-Regular", BodyFontFamily = "Nunito-Regular" },
+})
+```
+
+- iOS: add the font file to the Xcode project and list it under `UIAppFonts` in `Info.plist`. Pass its PostScript
+  name, for example `Nunito-Regular`.
+- Android: add the font file as a font resource (`res/font/nunito_regular.ttf`, in an Android library plugin). Pass
+  the resource name, `nunito_regular`. A name that is not a resource is tried lowercased, with any character other
+  than `a-z`, `0-9` and `_` as `_`, so `Nunito-Regular` also finds `nunito_regular`. The bridge finds the resource by name at runtime, so with
+  resource shrinking on, keep the fonts: a `res/raw/keep.xml` with `tools:keep="@font/*"`.
+
+A blank or unknown name, or a font that cannot load, draws the system font. Only a placement's appearance styles the sheet; a gift button's
+appearance ignores `Sheet`. WebGL ignores both. See
+[docs.encorekit.com](https://docs.encorekit.com/publishers/unity/sdk-reference/appearance-config).
 
 Your own button labels, a loading state, and a warm-up when the screen opens:
 
 ```csharp
 var reward = Encore.Placement("level_complete").UseCase(UseCase.RewardUsers);
 reward.Prefetch(); // iOS only for now
-moreGiftsButton.SetActive(await reward.HasOffersAsync()); // Android and iOS; false on WebGL for now
+moreGiftsButton.SetActive(await reward.HasOffersAsync()); // Android, iOS and WebGL
 
 reward.OnLoadingStateChange += loading => spinner.SetActive(loading);
 var result = await reward.Cta("Claim my gift").Decline("Maybe later").Badge("Top pick").ShowAsync();
 
-Encore.IsClaimEnabled = false;                              // grey out the claim button
-Encore.PublisherRewardPolicy = new PublisherRewardPolicy(5); // at most 5 prizes a day
+Encore.IsClaimEnabled = false; // grey out the claim button
 ```
 
 Embedded views draw above the game at a UI element's rect. Add a component to an empty `RectTransform`:

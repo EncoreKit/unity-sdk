@@ -190,10 +190,11 @@ enum UnitySerialization {
         )
     }
 
-    // Keys and values as the Flutter bridge's. An empty object is no appearance.
-    static func appearance(_ raw: Any?) -> AppearanceConfig? {
+    // Keys and values as the Flutter bridge's. An empty object is no appearance. A trigger's own appearance takes no
+    // sheet (the native SDK ignores it there), so the trigger paths leave it out.
+    static func appearance(_ raw: Any?, sheet: Bool = true) -> AppearanceConfig? {
         guard let map = raw as? [String: Any] else { return nil }
-        let config = AppearanceConfig(
+        var config = AppearanceConfig(
             accentColor: map["accentColor"] as? String,
             backgroundColor: map["backgroundColor"] as? String,
             backgroundEndColor: map["backgroundEndColor"] as? String,
@@ -203,7 +204,19 @@ enum UnitySerialization {
             onAccentColor: map["onAccentColor"] as? String,
             colorScheme: (map["colorScheme"] as? String).flatMap(AppearanceConfig.ColorScheme.init(rawValue:))
         )
+        if sheet { config.sheet = sheetAppearance(map["sheet"]) }
         return config == AppearanceConfig() ? nil : config
+    }
+
+    // The sheet's fonts, by the name the app registered (UIAppFonts). Blank is none; an unknown name draws the system font.
+    static func sheetAppearance(_ raw: Any?) -> SheetAppearance? {
+        guard let map = raw as? [String: Any] else { return nil }
+        func family(_ key: String) -> String? {
+            guard let value = (map[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+            return value
+        }
+        let sheet = SheetAppearance(headingFontFamily: family("headingFontFamily"), bodyFontFamily: family("bodyFontFamily"))
+        return sheet == SheetAppearance() ? nil : sheet
     }
 
     // No id or no title is no prize. The SDK decides what blank text and the icon URL mean.
@@ -225,7 +238,7 @@ enum UnitySerialization {
         TriggerLook(
             icon: (options["icon"] as? String).flatMap(TriggerIcon.init(rawValue:)) ?? .gift,
             alignment: alignment(options["alignment"]),
-            appearance: appearance(options["appearance"]),
+            appearance: appearance(options["appearance"], sheet: false),
             publisherReward: publisherReward(options["publisherReward"])
         )
     }
@@ -240,7 +253,7 @@ enum UnitySerialization {
     static func triggerUpdate(_ options: [String: Any]) -> TriggerUpdate {
         TriggerUpdate(
             alignment: options["alignment"] == nil ? nil : alignment(options["alignment"]),
-            appearance: options["appearance"] == nil ? nil : .some(appearance(options["appearance"])),
+            appearance: options["appearance"] == nil ? nil : .some(appearance(options["appearance"], sheet: false)),
             publisherReward: options["publisherReward"] == nil ? nil : .some(publisherReward(options["publisherReward"]))
         )
     }

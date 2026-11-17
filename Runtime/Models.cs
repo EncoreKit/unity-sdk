@@ -52,6 +52,18 @@ namespace EncoreKit
         // Null follows the app's setting in the Encore portal.
         public ColorScheme? ColorScheme;
         public string BackgroundEndColor;
+        // The reward sheet's fonts. Triggers ignore it. Null keeps the sheet's own.
+        public SheetAppearance Sheet;
+    }
+
+    // Fonts for the reward sheet, by the name the app registered natively: an iOS font name listed under UIAppFonts,
+    // an Android res/font resource name. A Unity font asset is not a native font. Blank or unknown draws the system font.
+    public sealed class SheetAppearance
+    {
+        // The text the sheet's style in the Encore portal marks as heading, such as the title.
+        public string HeadingFontFamily;
+        // Every other text on the sheet.
+        public string BodyFontFamily;
     }
 
     // Your own prize for trying an offer. Grant it when the result's Claim.UserConfirmedCompletion is true.
