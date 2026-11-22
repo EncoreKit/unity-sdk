@@ -8,6 +8,7 @@ namespace EncoreKit.Internal
     internal sealed partial class IosPlatform
     {
         [DllImport("__Internal")] private static extern void EncoreUnity_SetClaimEnabled([MarshalAs(UnmanagedType.I1)] bool enabled);
+        [DllImport("__Internal")] private static extern void EncoreUnity_SetEnabled([MarshalAs(UnmanagedType.I1)] bool enabled);
         [DllImport("__Internal")] private static extern void EncoreUnity_SetPublisherRewardDailyLimit(int dailyLimit);
         [DllImport("__Internal")] private static extern void EncoreUnity_Prefetch(string requestJson);
         [DllImport("__Internal")] private static extern void EncoreUnity_HasOffers(long requestId, string requestJson, NativeCallback onReply);
@@ -15,6 +16,7 @@ namespace EncoreKit.Internal
         [DllImport("__Internal")] private static extern void EncoreUnity_ReportWrapperError(string where, string code);
 
         public void SetClaimEnabled(bool enabled) => EncoreUnity_SetClaimEnabled(enabled);
+        public void SetEnabled(bool enabled) => EncoreUnity_SetEnabled(enabled);
         public void SetPublisherRewardDailyLimit(int dailyLimit) => EncoreUnity_SetPublisherRewardDailyLimit(dailyLimit);
         public void Prefetch(string requestJson) => EncoreUnity_Prefetch(requestJson);
 

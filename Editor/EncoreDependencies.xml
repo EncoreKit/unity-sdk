@@ -2,7 +2,7 @@
 <!-- Read by External Dependency Manager for Unity. The one native version pin: exact versions only, never a range. -->
 <dependencies>
   <androidPackages>
-    <androidPackage spec="com.encorekit:encore:2.6.0">
+    <androidPackage spec="com.encorekit:encore:2.8.0">
       <repositories>
         <repository>https://repo.maven.apache.org/maven2</repository>
       </repositories>
@@ -11,6 +11,6 @@
   <iosPods>
     <!-- All targets: Encore.framework is dynamic, so the app target must embed it as well as UnityFramework linking it. -->
     <!-- source: CocoaPods trunk is read-only from 2 December 2026, so EncoreKit resolves from its own spec repo only. -->
-    <iosPod name="EncoreKit" version="2.6.0" minTargetSdk="15.0" addToAllTargets="true" source="'https://github.com/EncoreKit/cocoapods-specs.git'" />
+    <iosPod name="EncoreKit" version="2.8.0" minTargetSdk="15.0" addToAllTargets="true" source="'https://github.com/EncoreKit/cocoapods-specs.git'" />
   </iosPods>
 </dependencies>

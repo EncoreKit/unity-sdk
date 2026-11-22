@@ -26,18 +26,37 @@ public func EncoreUnity_GiftsButtonCreate(_ id: Int64, _ optionsJson: UnsafePoin
             send(callback, id, UnitySerialization.giftsButtonHeight(0))
             return
         }
-        let trigger = EncoreTriggerView(
-            id: create.triggerId,
-            placement: create.placement,
-            useCase: .rewardUsers,
-            autoOpen: create.autoOpenOff ? .off : nil,
-            icon: look.icon,
-            appearance: look.appearance,
-            alignment: look.alignment
-        )
+        let trigger: EncoreTriggerView
+        // The gift button's own view, because only it takes a host state and reports showing.
+        if create.triggerId == UnitySerialization.giftsButtonId {
+            let gifts = GiftsButtonView(
+                placement: create.placement,
+                useCase: .rewardUsers,
+                autoOpen: create.autoOpenOff ? .off : nil,
+                icon: look.icon,
+                appearance: look.appearance,
+                alignment: look.alignment
+            )
+            gifts.hostState = UnitySerialization.hostState(options["hostState"] as? [String: Any])
+            gifts.onShowingChange = { showing in
+                send(callback, id, UnitySerialization.giftsButtonShowing(showing), "EncoreUnity_GiftsButtonCreate")
+            }
+            trigger = gifts
+        } else {
+            trigger = EncoreTriggerView(
+                id: create.triggerId,
+                placement: create.placement,
+                useCase: .rewardUsers,
+                autoOpen: create.autoOpenOff ? .off : nil,
+                icon: look.icon,
+                appearance: look.appearance,
+                alignment: look.alignment
+            )
+        }
         trigger.publisherReward = look.publisherReward
         // After the init: the init's own assignments run no didSet.
         applyText(trigger, options)
+        applySheetText(trigger, options)
         trigger.values = UnitySerialization.values(options) ?? [:]
         trigger.onResult = { result in
             send(callback, id, UnitySerialization.giftsButtonResult(result), "EncoreUnity_GiftsButtonCreate")
@@ -57,7 +76,12 @@ public func EncoreUnity_GiftsButtonSetFrame(_ id: Int64, _ x: Float, _ y: Float,
 
 @_cdecl("EncoreUnity_GiftsButtonSetVisible")
 public func EncoreUnity_GiftsButtonSetVisible(_ id: Int64, _ visible: Bool) {
-    onMain { giftsButtons[id]?.setVisible(visible) }
+    onMain { giftsButtons[id]?.setVisible(visible ? 1 : 0) }
+}
+
+@_cdecl("EncoreUnity_GiftsButtonSetVisibleFraction")
+public func EncoreUnity_GiftsButtonSetVisibleFraction(_ id: Int64, _ fraction: Double) {
+    onMain { giftsButtons[id]?.setVisible(fraction) }
 }
 
 // The native view redraws in place; recreating it would restart its mount and its impression.
@@ -67,11 +91,15 @@ public func EncoreUnity_GiftsButtonUpdate(_ id: Int64, _ optionsJson: UnsafePoin
     onMain {
         guard let trigger = giftsButtons[id]?.trigger else { return }
         if let text = options["text"] as? [String: Any] { applyText(trigger, text) }
+        if let text = options["sheetText"] as? [String: Any] { applySheetText(trigger, text) }
         if let values = UnitySerialization.values(options) { trigger.values = values }
         let update = UnitySerialization.triggerUpdate(options)
         if let alignment = update.alignment { trigger.alignment = alignment }
         if let appearance = update.appearance { trigger.appearance = appearance }
         if let reward = update.publisherReward { trigger.publisherReward = reward }
+        if options.keys.contains("hostState"), let gifts = trigger as? GiftsButtonView {
+            gifts.hostState = UnitySerialization.hostState(options["hostState"] as? [String: Any])
+        }
     }
 }
 
@@ -80,6 +108,12 @@ public func EncoreUnity_GiftsButtonUpdate(_ id: Int64, _ optionsJson: UnsafePoin
     trigger.headline = text.headline
     trigger.subheadline = text.subheadline
     trigger.cta = text.cta
+}
+
+@MainActor private func applySheetText(_ trigger: EncoreTriggerView, _ options: [String: Any]) {
+    let text = UnitySerialization.triggerSheetText(options)
+    trigger.sheetHeadline = text.headline
+    trigger.sheetSubheadline = text.subheadline
 }
 
 @_cdecl("EncoreUnity_GiftsButtonDestroy")
@@ -115,6 +149,34 @@ extension UnitySerialization {
         return TriggerText(headline: text("headline"), subheadline: text("subheadline"), cta: text("cta"))
     }
 
+    struct SheetText: Equatable {
+        let headline: String?
+        let subheadline: String?
+    }
+
+    // The sheet a tap opens. An empty or absent key is nil, so the sheet keeps its own text.
+    static func triggerSheetText(_ options: [String: Any]) -> SheetText {
+        let text: (String) -> String? = { key in (options[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        return SheetText(headline: text("sheetHeadline"), subheadline: text("sheetSubheadline"))
+    }
+
+    static let giftsButtonId = "giftsButton"
+
+    // The native GiftsButtonHostState's names. Steps win over the progress, so the look keeps their exact ratio.
+    // No known status is no host state, as {} is.
+    static func hostState(_ json: [String: Any]?) -> GiftsButtonHostState? {
+        switch json?["status"] as? String {
+        case "ready": return .ready
+        case "done": return .done
+        case "locked":
+            if let completed = json?["completed"] as? Int, let total = json?["total"] as? Int {
+                return .locked(completed: completed, of: total)
+            }
+            return .locked(progress: (json?["progress"] as? NSNumber)?.doubleValue)
+        default: return nil
+        }
+    }
+
     // Nil when the message carries no values.
     static func values(_ options: [String: Any]) -> [String: String]? { options["values"] as? [String: String] }
 }
@@ -130,6 +192,9 @@ extension UnitySerialization {
     // Points per Unity screen pixel. Unity can render below the display resolution.
     private var scaleY: CGFloat = 1
     private var reportedHeight: Double = -1
+    // Kept apart, so a hide from the game survives a later SetFrame and a share set before placement waits for it.
+    private var placed = false
+    private var gameFraction: Double = 1
 
     init(trigger: EncoreTriggerView, onHeight: @escaping (Double) -> Void) {
         self.trigger = trigger
@@ -137,7 +202,8 @@ extension UnitySerialization {
         super.init(frame: .zero)
         // Hidden until C# places it, so it never flashes at the top-left corner.
         isHidden = true
-        clipsToBounds = true
+        // Unclipped, as the SDK hosts its own looks, so a shadow draws past the rect. Taps stay inside bounds.
+        clipsToBounds = false
         trigger.translatesAutoresizingMaskIntoConstraints = false
         addSubview(trigger)
         NSLayoutConstraint.activate([
@@ -150,6 +216,7 @@ extension UnitySerialization {
     // After this, nothing from this host or its trigger reaches C#.
     func tearDown() {
         trigger.onResult = nil
+        (trigger as? GiftsButtonView)?.onShowingChange = nil
         onHeight = nil
         removeFromSuperview()
     }
@@ -172,14 +239,24 @@ extension UnitySerialization {
         let scaleX = root.bounds.width / CGFloat(screenWidth)
         scaleY = root.bounds.height / CGFloat(screenHeight)
         frame = CGRect(x: CGFloat(x) * scaleX, y: CGFloat(y) * scaleY, width: CGFloat(width) * scaleX, height: frame.height)
-        if isHidden { setVisible(true) }
+        if !placed {
+            placed = true
+            applyVisibility()
+        }
         setNeedsLayout()
     }
 
-    func setVisible(_ visible: Bool) {
-        isHidden = !visible
-        // Impressions count only while the game shows the button.
-        trigger.hostVisibleFraction = visible ? 1 : 0
+    // The share of the trigger the game shows, as given; the SDK clamps it. 0 or less hides the view, NaN shows it, as natively.
+    func setVisible(_ fraction: Double) {
+        gameFraction = fraction
+        applyVisibility()
+    }
+
+    // Impressions count only for the share the game shows, and nothing shows before the first frame.
+    private func applyVisibility() {
+        let shown = placed ? gameFraction : 0
+        isHidden = shown <= 0
+        trigger.hostVisibleFraction = shown
     }
 
     // The trigger sizes itself: zero when it shows nothing, its card height when it shows.

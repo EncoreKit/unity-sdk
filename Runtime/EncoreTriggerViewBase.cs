@@ -13,10 +13,13 @@ namespace EncoreKit
         [SerializeField] private string headline;
         [SerializeField] private string subheadline;
         [SerializeField] private string cta;
+        [Tooltip("The headline of the sheet a tap opens. Empty keeps the sheet's own.")]
+        [SerializeField] private string sheetHeadline;
+        [SerializeField] private string sheetSubheadline;
         [SerializeField] private TriggerIcon icon = TriggerIcon.Gift;
         [Tooltip("Where the card sits across this element's width. SetAlignment on the trigger changes it later.")]
         [SerializeField] private EncoreAlignment alignment = EncoreAlignment.Center;
-        [Tooltip("Sets this element's height to the trigger's, and to zero when there is nothing to show.")]
+        [Tooltip("Sets this element's height to the trigger's: zero when there is nothing to show, or while the look is presented over the screen.")]
         [SerializeField] private bool resizeToContent = true;
 
         private readonly Vector3[] _corners = new Vector3[4];
@@ -44,6 +47,8 @@ namespace EncoreKit
             Headline = Blank(headline),
             Subheadline = Blank(subheadline),
             Cta = Blank(cta),
+            SheetHeadline = Blank(sheetHeadline),
+            SheetSubheadline = Blank(sheetSubheadline),
             Icon = icon,
             Alignment = alignment,
         };

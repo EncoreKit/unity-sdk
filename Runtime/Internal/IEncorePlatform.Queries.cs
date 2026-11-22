@@ -5,6 +5,8 @@ namespace EncoreKit.Internal
     internal partial interface IEncorePlatform
     {
         void SetClaimEnabled(bool enabled);
+        // The SDK's on/off switch. Configure sends it before the native configure, and again on every change.
+        void SetEnabled(bool enabled);
         void SetPublisherRewardDailyLimit(int dailyLimit);
         void Prefetch(string requestJson);
         // One reply, Wire.ParseHasOffers.

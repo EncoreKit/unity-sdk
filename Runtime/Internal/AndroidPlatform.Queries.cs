@@ -11,6 +11,14 @@ namespace EncoreKit.Internal
 
         public void SetClaimEnabled(bool enabled) => _queries.CallStatic("setClaimEnabled", enabled);
 
+        // False from the bridge means the native SDK did not take it (older than 2.7.0): throw, so Configure fails closed
+        // and IsEnabled keeps the value the SDK still has.
+        public void SetEnabled(bool enabled)
+        {
+            if (!_queries.CallStatic<bool>("setEnabled", enabled))
+                throw new InvalidOperationException("The native Android SDK did not take isEnabled");
+        }
+
         public void SetPublisherRewardDailyLimit(int dailyLimit) => _queries.CallStatic("setPublisherRewardDailyLimit", dailyLimit);
 
         // The Android SDK 2.5.0 has no placement prefetch.

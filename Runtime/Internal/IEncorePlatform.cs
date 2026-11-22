@@ -18,6 +18,8 @@ namespace EncoreKit.Internal
         void CreateGiftsButton(long id, string optionsJson, Action<string> onMessageJson);
         void SetGiftsButtonFrame(long id, float x, float y, float width, float screenWidth, float screenHeight);
         void SetGiftsButtonVisible(long id, bool visible);
+        // The share of the trigger the game shows, 0 to 1, finite. Above 0 it draws; 0 hides it.
+        void SetGiftsButtonVisibleFraction(long id, double fraction);
         void UpdateGiftsButton(long id, string updateJson);
         void DestroyGiftsButton(long id);
 

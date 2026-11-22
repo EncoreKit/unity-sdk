@@ -8,6 +8,7 @@ namespace EncoreKit
     public static partial class Encore
     {
         private static bool _isClaimEnabled = true;
+        private static bool _isEnabled = true;
         private static PublisherRewardPolicy _publisherRewardPolicy = new PublisherRewardPolicy();
 
         // Whether the claim button on offer cards is tappable. Survives Reset. Android and iOS apply a change to an
@@ -19,6 +20,24 @@ namespace EncoreKit
             {
                 _isClaimEnabled = value;
                 if (_platform != null) Safely("IsClaimEnabled", () => _platform.SetClaimEnabled(value));
+            }
+        }
+
+        // Turns the whole SDK off (false) or back on (true), for a game whose player turns off an in-app deals setting.
+        // Default true; set it any time, before or after Configure. While off the native SDK sends nothing (no analytics or
+        // app open, foreground and background events, no error reports, no background network), Show answers
+        // NotPresentedReason.Disabled with no UI, and triggers show nothing. A sheet already open finishes. Nothing dropped
+        // while off is sent later; turning it back on resumes the SDK's own work. Not persisted: every launch starts on, so
+        // set it from the game's own setting at launch. Configure sends it before the native configure, so a game set off
+        // never starts the SDK. After Configure, a value the SDK refused is not kept: IsEnabled stays as the SDK is. Android,
+        // iOS and WebGL (a bundled web SDK older than 2.7.0 has no switch, so off is refused there).
+        public static bool IsEnabled
+        {
+            get => _isEnabled;
+            set
+            {
+                // After Configure, the value the native SDK took: one it refused leaves IsEnabled as the SDK still is.
+                if (_platform == null || Log.Contain("IsEnabled", () => _platform.SetEnabled(value))) _isEnabled = value;
             }
         }
 
@@ -36,6 +55,11 @@ namespace EncoreKit
 
         // Tests only: a fake platform in place of a configured one.
         internal static void SetPlatformForTests(IEncorePlatform platform) => _platform = platform;
+
+        // Before the native configure, so the SDK never starts while the game has it off. False when the game has it off
+        // and the native SDK did not take it: Configure then does not start the SDK (fail closed).
+        private static bool ApplySettingsBeforeConfigure(IEncorePlatform platform) =>
+            Log.Contain("IsEnabled", () => platform.SetEnabled(_isEnabled), () => platform) || _isEnabled;
 
         private static void ApplySettings(IEncorePlatform platform)
         {

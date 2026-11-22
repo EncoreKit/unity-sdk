@@ -38,15 +38,22 @@ namespace EncoreKit
             PurchaseBridge.Controller = purchaseController;
             var optionsJson = Wire.ConfigureOptions(options, purchaseController != null);
             // A synchronous throw (a missing bridge class or entry point) leaves Encore unconfigured, so Configure can run again.
+            // So does an off switch the native SDK did not take: the game has the SDK off, so it does not start.
             // _platform is still null here, so failures report to the local platform.
+            var offNotTaken = false;
             if (!Log.Contain("Configure", () =>
                 {
                     platform = Platforms.Create();
                     // Before Configure, so the SDK's first events carry it. A bridge without it still configures.
                     var created = platform;
                     Log.Contain("SetWrapper", () => created.SetWrapper(PackageInfo.Name, PackageInfo.Version), () => created);
+                    if (!ApplySettingsBeforeConfigure(created))
+                    {
+                        offNotTaken = true;
+                        return;
+                    }
                     platform.Configure(apiKey, optionsJson, OnOutcomeJson, json => PurchaseBridge.OnRequest(platform, json));
-                }, () => platform))
+                }, () => platform) || offNotTaken)
             {
                 PurchaseBridge.Controller = null;
                 return;

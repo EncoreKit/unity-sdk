@@ -66,6 +66,9 @@ namespace EncoreKit.Internal
 
         public void SetGiftsButtonVisible(long id, bool visible) => EncoreUnity_GiftsButtonSetVisible((int)id, visible ? 1 : 0);
 
+        // The web SDK measures what the page shows itself and has no share to set, so only shown or hidden crosses.
+        public void SetGiftsButtonVisibleFraction(long id, double fraction) => EncoreUnity_GiftsButtonSetVisible((int)id, fraction <= 0 ? 0 : 1);
+
         public void UpdateGiftsButton(long id, string updateJson) => EncoreUnity_GiftsButtonUpdate((int)id, updateJson);
 
         public void DestroyGiftsButton(long id)

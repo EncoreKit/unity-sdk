@@ -8,6 +8,12 @@ public func EncoreUnity_SetClaimEnabled(_ enabled: Bool) {
     onMain { Encore.shared.isClaimEnabled = enabled }
 }
 
+// The SDK's on/off switch. C# sends it before EncoreUnity_Configure too; both go through onMain, so it lands first.
+@_cdecl("EncoreUnity_SetEnabled")
+public func EncoreUnity_SetEnabled(_ enabled: Bool) {
+    onMain { Encore.shared.isEnabled = enabled }
+}
+
 // The SDK clamps the limit to 1...10.
 @_cdecl("EncoreUnity_SetPublisherRewardDailyLimit")
 public func EncoreUnity_SetPublisherRewardDailyLimit(_ dailyLimit: Int32) {

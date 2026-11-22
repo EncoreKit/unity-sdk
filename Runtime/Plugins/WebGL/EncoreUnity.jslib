@@ -106,6 +106,7 @@ var EncoreUnityLib = {
       if (r.status === 'claimed') {
         var offer = { offerId: r.offerId, campaignId: r.campaignId, advertiserName: r.advertiserName };
         if (r.transactionId) offer.transactionId = r.transactionId;
+        if (typeof r.claimUrl === 'string' && r.claimUrl) offer.claimUrl = r.claimUrl;
         return {
           type: 'presented',
           advertiser: { type: 'claimed', offer: offer },
@@ -118,6 +119,8 @@ var EncoreUnityLib = {
       if (reason === 'noOffersAvailable') return { type: 'notPresented', reason: 'no_offer_available' };
       if (reason === 'alreadyPresenting') return { type: 'notPresented', reason: 'already_presenting' };
       if (reason === 'notConfigured') return { type: 'notPresented', reason: 'not_configured' };
+      // The game turned the SDK off: no sheet was shown, as on Android and iOS.
+      if (reason === 'disabled') return { type: 'notPresented', reason: 'disabled' };
       var dismissal = { userClosedModal: 'close_button', userDeclinedLastOffer: 'last_offer_declined' }[reason] || 'dismissed';
       return { type: 'presented', advertiser: { type: 'notAttempted' }, publisher: 'not_attempted', dismissal: dismissal };
     },
@@ -203,14 +206,129 @@ var EncoreUnityLib = {
       EncoreUnity.send(button.callback, button.id, { event: 'height', height: height });
     },
 
-    // The keys are the web SDK's own. Strings pass through as the native bridges pass them; {} means none.
-    appearance: function (a) {
+    // The keys are the web SDK's own. Strings pass through as the native bridges pass them; {} means none. Only a
+    // placement passes withSheet: a trigger's own appearance takes no sheet, as natively. The sheet fonts pass as CSS font
+    // families; the trigger look fields (fontFamily to iconImage) stay native, because web SDK 2.6.0 has none of them.
+    appearance: function (a, withSheet) {
       if (!a || typeof a !== 'object') return undefined;
       var out = {};
       ['accentColor', 'backgroundColor', 'textColor', 'secondaryTextColor', 'trackColor', 'onAccentColor', 'backgroundEndColor']
         .forEach(function (key) { if (typeof a[key] === 'string') out[key] = a[key]; });
       if (['system', 'light', 'dark'].indexOf(a.colorScheme) >= 0) out.colorScheme = a.colorScheme;
+      if (withSheet && EncoreUnity.isRecord(a.sheet)) {
+        var sheet = {};
+        ['headingFontFamily', 'bodyFontFamily'].forEach(function (key) {
+          if (typeof a.sheet[key] === 'string' && a.sheet[key].trim()) sheet[key] = a.sheet[key].trim();
+        });
+        var components = EncoreUnity.sheetComponents(a.sheet.components);
+        if (components) sheet.components = components;
+        if (Object.keys(sheet).length) out.sheet = sheet;
+      }
       return Object.keys(out).length ? out : undefined;
+    },
+
+    isRecord: function (v) { return v !== null && typeof v === 'object' && !Array.isArray(v); },
+    // A finite number; a boolean is not one.
+    isNumber: function (v) { return typeof v === 'number' && isFinite(v); },
+    isCurve: function (v) { return v === undefined || v === null || ['linear', 'easeIn', 'easeOut', 'easeInOut'].indexOf(v) >= 0; },
+
+    // The bridge's component styles as the web SDK's skin shape, which Swift's SheetComponentStyle.json also writes.
+    // Type checks only, with the native drop rules; the web SDK range-checks the rest and warns.
+    sheetComponents: function (raw) {
+      if (!EncoreUnity.isRecord(raw)) return undefined;
+      var out = {};
+      Object.keys(raw).forEach(function (name) {
+        var trimmed = name.trim();
+        if (trimmed && EncoreUnity.isRecord(raw[name])) out[trimmed] = EncoreUnity.skinStyle(raw[name]);
+      });
+      return Object.keys(out).length ? out : undefined;
+    },
+
+    skinStyle: function (m) {
+      var U = EncoreUnity;
+      var style = {};
+      ['fill', 'borderColor', 'contentColor'].forEach(function (key) {
+        var c = m[key];
+        if (typeof c === 'string') style[key] = c;
+        else if (U.isRecord(c) && typeof c.light === 'string' && typeof c.dark === 'string') style[key] = { light: c.light, dark: c.dark };
+      });
+      ['cornerRadius', 'borderWidth'].forEach(function (key) { if (U.isNumber(m[key])) style[key] = m[key]; });
+      if (m.font === 'heading' || m.font === 'body') style.font = m.font;
+      ['image', 'trueImage', 'falseImage', 'backgroundImage'].forEach(function (key) {
+        if (typeof m[key] === 'string' && m[key].trim()) style[key] = m[key].trim();
+      });
+      var animation = U.skinAnimation(m.animation);
+      if (animation) style.animation = animation;
+      var enter = U.skinEnter(m.enter);
+      if (enter) style.enter = enter;
+      var loop = U.skinLoop(m.loop);
+      if (loop) style.loop = loop;
+      return style;
+    },
+
+    // offsetX and offsetY become offset { x, y }: one set writes both, the other 0.
+    skinPose: function (p) {
+      if (!EncoreUnity.isRecord(p)) return undefined;
+      var out = {};
+      ['scale', 'opacity', 'rotation'].forEach(function (key) { if (EncoreUnity.isNumber(p[key])) out[key] = p[key]; });
+      var x = EncoreUnity.isNumber(p.offsetX) ? p.offsetX : undefined;
+      var y = EncoreUnity.isNumber(p.offsetY) ? p.offsetY : undefined;
+      if (x !== undefined || y !== undefined) out.offset = { x: x || 0, y: y || 0 };
+      return out;
+    },
+
+    // An images slot's picture becomes the urlBinding an asyncImage uses for it.
+    skinAnimation: function (a) {
+      var U = EncoreUnity;
+      if (!U.isRecord(a) || typeof a.url !== 'string' || !a.url.trim() || typeof a.fallbackImage !== 'string' || !a.fallbackImage.trim()) return undefined;
+      var out = { url: a.url.trim(), fallbackImage: a.fallbackImage.trim() };
+      if (typeof a.loop === 'boolean') out.loop = a.loop;
+      if (typeof a.autoplay === 'boolean') out.autoplay = a.autoplay;
+      var bindings = { logo: 'offerLogoImage', hero: 'offerHeroImage', primaryCreative: 'offerPrimaryCreative' };
+      var images = {};
+      if (U.isRecord(a.images)) {
+        Object.keys(a.images).forEach(function (id) {
+          var slot = a.images[id];
+          if (U.isRecord(slot) && U.isNumber(slot.offer) && Math.floor(slot.offer) === slot.offer && bindings.hasOwnProperty(slot.picture)) {
+            images[id] = { offer: slot.offer, urlBinding: bindings[slot.picture] };
+          }
+        });
+      }
+      if (Object.keys(images).length) out.images = images;
+      return out;
+    },
+
+    skinEnter: function (e) {
+      var U = EncoreUnity;
+      var from = U.isRecord(e) ? U.skinPose(e.from) : undefined;
+      if (!from || !U.isNumber(e.duration) || !U.isCurve(e.curve)) return undefined;
+      var out = { from: from, duration: e.duration };
+      if (U.isNumber(e.delay)) out.delay = e.delay;
+      if (e.curve != null) out.curve = e.curve;
+      return out;
+    },
+
+    // A keyframe { at, pose } becomes { at, ...pose }. One malformed keyframe drops the loop.
+    skinLoop: function (l) {
+      var U = EncoreUnity;
+      if (!U.isRecord(l) || !U.isNumber(l.duration) || !Array.isArray(l.keyframes) || !U.isCurve(l.curve)) return undefined;
+      var keyframes = [];
+      for (var i = 0; i < l.keyframes.length; i++) {
+        var f = l.keyframes[i];
+        var pose = U.isRecord(f) && U.isNumber(f.at) ? U.skinPose(f.pose) : undefined;
+        if (!pose) return undefined;
+        keyframes.push(Object.assign({ at: f.at }, pose));
+      }
+      // A count that is not a whole number drops the loop: unset would mean forever.
+      if (l.repeatCount != null && !(U.isNumber(l.repeatCount) && Math.floor(l.repeatCount) === l.repeatCount)) return undefined;
+      var out = { duration: l.duration, keyframes: keyframes };
+      if (l.curve != null) out.curve = l.curve;
+      if (U.isNumber(l.phaseOffset)) out.phaseOffset = l.phaseOffset;
+      var reduced = U.skinPose(l.reducedMotion);
+      if (reduced) out.reducedMotion = reduced;
+      if (U.isNumber(l.delay)) out.delay = l.delay;
+      if (l.repeatCount != null) out.repeatCount = l.repeatCount;
+      return out;
     },
 
     // No id or no title is no prize, as in the native bridges. The SDK decides what blank text means.
@@ -275,6 +393,8 @@ var EncoreUnityLib = {
       if (EncoreUnity.text(o.headline)) options.headline = o.headline;
       if (EncoreUnity.text(o.subheadline)) options.subheadline = o.subheadline;
       if (EncoreUnity.text(o.cta)) options.cta = o.cta;
+      if (EncoreUnity.text(o.sheetHeadline)) options.sheetHeadline = o.sheetHeadline;
+      if (EncoreUnity.text(o.sheetSubheadline)) options.sheetSubheadline = o.sheetSubheadline;
       if (['gift', 'appIcon', 'none'].indexOf(o.icon) >= 0) options.icon = o.icon;
       if (o.alignment !== undefined) options.alignment = EncoreUnity.alignment(o.alignment);
       var appearance = EncoreUnity.appearance(o.appearance);
@@ -286,6 +406,49 @@ var EncoreUnityLib = {
       button.handle = named && typeof named.mount === 'function'
         ? named.mount(button.host, options)
         : sdk.triggers.mount(o.triggerId, button.host, options);
+    },
+
+    // Custom claims (Encore.Claim) by the id C# picks. A destroyed claim with a tap in flight stays until the tap answers.
+    claims: {},
+
+    // web-sdk EncoreClaimState to the Flutter claim channel's state. Anything it cannot read is hidden.
+    claimState: function (s) {
+      var U = EncoreUnity;
+      if (!s || typeof s !== 'object') return { kind: 'hidden' };
+      if ((s.kind === 'gifts' || s.kind === 'thanks') && U.isNumber(s.offerCount) && Array.isArray(s.logos)) {
+        var logoUrls = s.logos
+          .map(function (l) { return l && typeof l.logoUrl === 'string' ? l.logoUrl : null; })
+          .filter(function (u) { return u !== null; });
+        return { kind: s.kind, offerCount: s.offerCount, logoUrls: logoUrls };
+      }
+      var time = function (d) { return d instanceof Date && isFinite(d.getTime()) ? d.getTime() : null; };
+      if (s.kind === 'reminder' && typeof s.advertiserName === 'string' && typeof s.transactionId === 'string' &&
+          U.isNumber(s.claimCount) && time(s.claimedAt) !== null && time(s.deadline) !== null) {
+        var out = {
+          kind: 'reminder', advertiserName: s.advertiserName, claimedAt: time(s.claimedAt), deadline: time(s.deadline),
+          claimCount: s.claimCount, transactionId: s.transactionId,
+        };
+        if (typeof s.logoUrl === 'string') out.logoUrl = s.logoUrl;
+        if (typeof s.perk === 'string') out.perk = s.perk;
+        return out;
+      }
+      return { kind: 'hidden' };
+    },
+
+    // Stops the claim's state at once; releases it now, or once its taps answer. Each step on its own.
+    destroyClaim: function (id) {
+      var entry = EncoreUnity.claims[id];
+      if (!entry) return;
+      delete EncoreUnity.claims[id];
+      EncoreUnity.attempt('Claim unsubscribe', function () { if (entry.unsubscribe) entry.unsubscribe(); });
+      EncoreUnity.attempt('Claim setVisible', function () { if (entry.handle) entry.handle.setVisible(0); });
+      if (entry.taps === 0) EncoreUnity.finishClaim(entry);
+      else entry.draining = true;
+    },
+
+    finishClaim: function (entry) {
+      entry.finished = true;
+      EncoreUnity.attempt('Claim destroy', function () { if (entry.handle) entry.handle.destroy(); });
     },
 
     destroy: function (id) {
@@ -402,7 +565,7 @@ var EncoreUnityLib = {
       }
       var placementId = EncoreUnity.text(request.placementId);
       var options = {};
-      var appearance = EncoreUnity.appearance(request.appearance);
+      var appearance = EncoreUnity.appearance(request.appearance, true);
       if (appearance) options.appearance = appearance;
       var builder = (placementId ? sdk.placement(placementId, options) : sdk.placement(options)).useCase(useCase);
       var reward = EncoreUnity.reward(request.publisherReward);
@@ -497,6 +660,18 @@ var EncoreUnityLib = {
           });
         }
       }
+      if (update.sheetText) {
+        var st = update.sheetText;
+        button.options.sheetHeadline = st.sheetHeadline;
+        button.options.sheetSubheadline = st.sheetSubheadline;
+        // Both keys always: undefined goes back to the sheet's own text.
+        if (button.handle && typeof button.handle.setSheetText === 'function') {
+          button.handle.setSheetText({
+            sheetHeadline: EncoreUnity.text(st.sheetHeadline),
+            sheetSubheadline: EncoreUnity.text(st.sheetSubheadline),
+          });
+        }
+      }
       if (update.alignment) {
         button.options.alignment = EncoreUnity.alignment(update.alignment);
         if (button.handle) button.handle.setAlignment(button.options.alignment);
@@ -513,6 +688,119 @@ var EncoreUnityLib = {
   // destroy() guards each of its steps, so it cannot throw.
   EncoreUnity_GiftsButtonDestroy: function (id) {
     EncoreUnity.destroy(id);
+  },
+
+  // Fail closed, as the native bridges do: a blank placement, an unknown use case or no web SDK makes no claim, so C#
+  // stays hidden. An absent use case is the reward default.
+  EncoreUnity_ClaimCreate: function (id, optionsJson, onMessage) {
+    EncoreUnity.attempt('ClaimCreate', function () {
+      EncoreUnity.destroyClaim(id);
+      var o = EncoreUnity.parse(optionsJson) || {};
+      var placement = typeof o.placement === 'string' ? o.placement.trim() : '';
+      var useCase = o.useCase === undefined ? 'rewardUsers' : EncoreUnity.useCase(o.useCase);
+      var sdk = EncoreUnity.sdk();
+      if (!placement || !useCase || !sdk || typeof sdk.claim !== 'function') return;
+      var entry = { id: id, callback: onMessage, handle: null, unsubscribe: null, taps: 0, draining: false, finished: false };
+      // Registered first, so a throw below is taken back by destroyClaim.
+      EncoreUnity.claims[id] = entry;
+      try {
+        var options = {
+          placement: placement,
+          useCase: useCase,
+          onResult: function (r) {
+            if (entry.finished) return;
+            var result = EncoreUnity.attempt('Claim result', function () { return EncoreUnity.result(r); }) ||
+              EncoreUnity.errorResult({ message: 'The web SDK sent a result the bridge could not read.' });
+            EncoreUnity.send(entry.callback, id, { event: 'result', result: result });
+            EncoreUnity.emitOutcome(placement, result);
+          },
+        };
+        if (o.autoOpen === 'off') options.autoOpen = 'off';
+        var reward = EncoreUnity.reward(o.publisherReward);
+        if (reward) options.publisherReward = reward;
+        if (EncoreUnity.text(o.sheetHeadline)) options.sheetHeadline = o.sheetHeadline;
+        if (EncoreUnity.text(o.sheetSubheadline)) options.sheetSubheadline = o.sheetSubheadline;
+        entry.handle = sdk.claim(options);
+        entry.unsubscribe = entry.handle.subscribe(function (state) {
+          if (EncoreUnity.claims[id] !== entry) return;
+          var payload = EncoreUnity.attempt('Claim state', function () { return EncoreUnity.claimState(state); }) || { kind: 'hidden' };
+          EncoreUnity.send(entry.callback, id, { event: 'state', state: payload });
+        });
+      } catch (e) {
+        EncoreUnity.destroyClaim(id);
+        throw e;
+      }
+    });
+  },
+
+  EncoreUnity_ClaimDestroy: function (id) {
+    EncoreUnity.destroyClaim(id);
+  },
+
+  EncoreUnity_ClaimSetVisible: function (id, fraction) {
+    EncoreUnity.attempt('ClaimSetVisible', function () {
+      var entry = EncoreUnity.claims[id];
+      if (entry && entry.handle) entry.handle.setVisible(fraction);
+    });
+  },
+
+  // Answers C# once: the sheet's result, no offers for a claim it does not hold, or an error.
+  EncoreUnity_ClaimTap: function (id, target, requestId, onResult) {
+    var reply = EncoreUnity.replyOnce(onResult, requestId);
+    var entry = null;
+    var settled = false;
+    var settle = function () {
+      if (settled || !entry) return;
+      settled = true;
+      entry.taps -= 1;
+      if (entry.draining && entry.taps === 0 && !entry.finished) EncoreUnity.finishClaim(entry);
+    };
+    try {
+      entry = EncoreUnity.claims[id] || null;
+      if (!entry || !entry.handle) {
+        entry = null;
+        reply({ type: 'notPresented', reason: 'no_offer_available' });
+        return;
+      }
+      var wire = UTF8ToString(target);
+      entry.taps += 1;
+      entry.handle.tap(['button', 'card', 'arrow'].indexOf(wire) >= 0 ? wire : undefined).then(
+        function (r) {
+          var result = EncoreUnity.attempt('ClaimTap result', function () { return EncoreUnity.result(r); }) ||
+            EncoreUnity.errorResult({ message: 'The web SDK sent a result the bridge could not read.' });
+          reply(result);
+          settle();
+        },
+        function (error) {
+          reply(EncoreUnity.errorResult(error));
+          settle();
+        }
+      );
+    } catch (e) {
+      EncoreUnity.contain('ClaimTap', e);
+      reply(EncoreUnity.errorResult(e));
+      settle();
+    }
+  },
+
+  EncoreUnity_ClaimDismiss: function (id) {
+    EncoreUnity.attempt('ClaimDismiss', function () {
+      var entry = EncoreUnity.claims[id];
+      if (entry && entry.handle) entry.handle.dismiss();
+    });
+  },
+
+  // Both keys always: undefined goes back to the sheet's own text.
+  EncoreUnity_ClaimSetSheetText: function (id, json) {
+    EncoreUnity.attempt('ClaimSetSheetText', function () {
+      var entry = EncoreUnity.claims[id];
+      var text = EncoreUnity.parse(json) || {};
+      if (!entry || !entry.handle) return;
+      entry.handle.setSheetText({
+        sheetHeadline: EncoreUnity.text(text.sheetHeadline),
+        sheetSubheadline: EncoreUnity.text(text.sheetSubheadline),
+      });
+    });
   },
 };
 

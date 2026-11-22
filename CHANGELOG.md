@@ -4,6 +4,80 @@ All notable changes to `com.encorekit.unity`. `make release` turns the Unrelease
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-22
+
+### Added
+
+- The trigger look fields on `AppearanceConfig`: `FontFamily`, `CountdownFontFamily`, `CornerRadius`, `Shadow` (an
+  `EncoreShadow`: `Flat`, `Soft` or `Strong`), `BorderWidth`, `BorderColor`, `BackgroundImage`,
+  `BackgroundImageCapInsets` (an `EncoreEdgeInsets`) and `IconImage`. They style `GiftsButton`, `ClaimReminder` and
+  `EncoreTrigger` as the native `AppearanceConfig` does, on Android and iOS; needs the native 2.6.0 SDKs. Fonts and
+  images are names the native app ships: fonts by the sheet font lookup; images from the iOS main bundle and Android
+  drawable resources. A blank name or a non-finite length is not sent; the native SDK clamps a negative length
+  and drops cap insets with a negative or non-finite side. A font name not found draws the system font; an image name keeps the look's
+  own background or icon. A placement's appearance ignores
+  them, as the native sheet does. WebGL ignores them, because web SDK 2.6.0 takes none of them.
+- `SheetAppearance.Components`: reward sheet styles per component from app code, keyed by `SheetComponent` (the
+  catalogue names as constants, such as `SheetComponent.PrimaryButton`, or any name). A `SheetComponentStyle` sets fill,
+  border and content colours (one hex, or a light and dark pair), corner radius, border width, font role, images, a
+  Lottie `Animation`, an `Enter` and a `Loop`. The Encore portal's Style editor wins per property, then app code, then
+  the variant. Android, iOS and WebGL; the native SDK drops a value out of range with one warning.
+
+- `ClaimedOffer.ClaimUrl`: the attributable link the user opened for a claim (iOS `claimURL`, Android and web
+  `claimUrl`). It completes the offer as this user, so keep it out of logs and analytics. Null for demo offers and links
+  with no transaction id. Android, iOS and WebGL.
+- `TriggerOptions.SheetHeadline` and `SheetSubheadline`, and `EncoreTrigger.SetSheetText`: the headline and subheadline
+  of the sheet a trigger opens (`GiftsButton`, `ClaimReminder`, `EncoreTrigger`, and the Inspector fields of their
+  components), as the native `sheetHeadline` and `sheetSubheadline`. Null or blank keeps the sheet's own text. A change
+  applies to the next sheet and redraws nothing. Android, iOS and WebGL.
+- `GiftsButtonOptions.HostState`, `GiftsButton.SetHostState` and `EncoreGiftsButtonView.HostState`: your app's state for
+  the gift, a `GiftsButtonHostState` (`Locked(progress)`, `Locked(completed, total)`, `Ready` or `Done`), as the native
+  `GiftsButtonHostState`. While locked, a tap shows a hint and never opens the sheet. A change redraws in place with no
+  new request. Android and iOS; WebGL ignores it, because web SDK 2.6.0 has none.
+- `GiftsButton.ShowingChanged` and `EncoreGiftsButtonView.ShowingChanged`: true while a look is drawn and false while
+  it draws nothing, on the first answer and on each change, as the native `onShowingChange`. Android and iOS; never
+  raised on WebGL.
+- `EncoreTrigger.SetVisible(float fraction)`: how much of a trigger the game shows, 0 to 1, for example under a panel
+  of its own. Above 0 the trigger draws and the native SDK counts the impression on that share (`hostVisibleFraction`);
+  0 hides it, and so does NaN or an infinity, as on `EncoreClaim`. `SetVisible(bool)` is unchanged and is the same as 1 or 0. Android and iOS; WebGL only shows or hides.
+- `Encore.Claim(placement, ClaimOptions)`: an `EncoreClaim` for a gifts button or claim reminder the game draws itself,
+  as the native `Encore.claim`. Read `State` (a `ClaimState`: `Hidden`, `Gifts` and `Thanks` with `OfferCount` and
+  `LogoUrls`, or `Reminder` with the claim's details) or `HasOffers`, and draw it; `StateChanged` raises each change.
+  `SetVisible(fraction)` counts the impression, `Tap` and `TapAsync` open the sheet and answer its result, `Dismiss`
+  hides a reminder, `Result` raises every sheet's result. `ClaimOptions` and the setters take `AutoOpenOff`,
+  `PublisherReward`, `SheetHeadline` and `SheetSubheadline`. `Dispose` releases the native claim; a tap in flight still
+  answers. Android, iOS and WebGL (web SDK 2.6.0 `Encore.claim`, which takes the prize only at create). In the Editor
+  it stays hidden.
+- `Encore.IsEnabled` turns the whole SDK off (`false`) or back on (`true`) at runtime, for a game whose player turns
+  off an in-app deals setting. Default `true`; set it any time, before or after `Configure`. `Configure` sends it
+  before the native configure, so a game set off never starts the SDK. If the native SDK cannot take `false` there
+  (a bridge older than the package), `Configure` leaves Encore unconfigured rather than start it, and can run again. While off the native SDK sends nothing (no
+  analytics or app open, foreground and background events, no error reports, no background network), `Show` answers
+  the new `NotPresentedReason.Disabled` with no UI, and triggers show nothing. A sheet already open finishes. Nothing
+  dropped while off is sent later; turning it back on resumes the SDK's own work. Not persisted: every launch starts
+  on. Android, iOS and WebGL; needs the native 2.7.0 SDKs, and `@encorekit/web-sdk` 2.7.0 for WebGL. A switch the
+  SDK refuses is never cached: after `Configure`, `IsEnabled` keeps the value the SDK still has. An older bundled web
+  SDK has no switch and is always on, so on WebGL `false` before `Configure` leaves Encore unconfigured, and after it
+  `IsEnabled` stays `true`. The same fail-closed rule covers a native Android SDK older than 2.7.0: the bridge now
+  answers whether the SDK took the switch. After a refused off, turning it on needs a new `Configure`.
+
+### Changed
+
+- Native pins: `com.encorekit:encore` 2.8.0 and the `EncoreKit` 2.8.0 pod.
+- From the 2.8.0 native SDKs, on Android and iOS: Encore can draw a gift button or claim reminder look over the
+  screen, as a popup, a half sheet or a full-screen cover, instead of in its spot. Encore picks the mode per look on the
+  server; there is no setting. While a look is presented, the trigger's `Height` is 0 and `HeightChanged` reports 0:
+  keep it placed and visible (do not `SetVisible(false)` it for having no height), since the native SDK uses its
+  visible share to know when the spot is seen. Device limits cap how often a presented look shows. Served looks can
+  also carry slot rules, a gift day count and entrance and loop motion, with no call.
+- From the 2.7.0 native SDKs: the moment, the purchase amount and device fields (device model and type, OS version,
+  connection type, low power mode) are now sent with offers requests. Update your App Store privacy and Play Data
+  safety answers when you upgrade; see the native 2.7.0 changelogs.
+- WebGL still bundles `@encorekit/web-sdk` 2.6.0, so on WebGL `IsEnabled` has no switch (see Added) and the 2.7.0 and
+  2.8.0 web changes are not in this release.
+- WebGL now passes the sheet fonts (`SheetAppearance.HeadingFontFamily` and `BodyFontFamily`) to the web SDK, which
+  takes them as CSS font families. The page must load those fonts. 2.6.0 said WebGL ignores them.
+
 ## [2.6.0] - 2026-11-16
 
 ### Added

@@ -1,6 +1,7 @@
 import Foundation
 @_spi(EncoreBridge) import Encore
 import os
+import SwiftUI
 
 // The C surface IosPlatform.cs calls through [DllImport("__Internal")]. Results go back as JSON over a C callback.
 public typealias EncoreUnityCallback = @convention(c) (Int64, UnsafePointer<CChar>?) -> Void
@@ -190,9 +191,9 @@ enum UnitySerialization {
         )
     }
 
-    // Keys and values as the Flutter bridge's. An empty object is no appearance. A trigger's own appearance takes no
-    // sheet (the native SDK ignores it there), so the trigger paths leave it out.
-    static func appearance(_ raw: Any?, sheet: Bool = true) -> AppearanceConfig? {
+    // Keys and values as the Flutter bridge's. An empty object is no appearance. C# sends each surface only its own
+    // fields (Wire.cs), so this maps what arrives.
+    static func appearance(_ raw: Any?) -> AppearanceConfig? {
         guard let map = raw as? [String: Any] else { return nil }
         var config = AppearanceConfig(
             accentColor: map["accentColor"] as? String,
@@ -202,20 +203,60 @@ enum UnitySerialization {
             secondaryTextColor: map["secondaryTextColor"] as? String,
             trackColor: map["trackColor"] as? String,
             onAccentColor: map["onAccentColor"] as? String,
-            colorScheme: (map["colorScheme"] as? String).flatMap(AppearanceConfig.ColorScheme.init(rawValue:))
+            colorScheme: (map["colorScheme"] as? String).flatMap(AppearanceConfig.ColorScheme.init(rawValue:)),
+            fontFamily: trimmedName(map["fontFamily"]),
+            countdownFontFamily: trimmedName(map["countdownFontFamily"]),
+            cornerRadius: length(map["cornerRadius"]),
+            shadow: (map["shadow"] as? String).flatMap(EncoreShadow.init(rawValue:)),
+            borderWidth: length(map["borderWidth"]),
+            borderColor: map["borderColor"] as? String,
+            backgroundImage: trimmedName(map["backgroundImage"]),
+            backgroundImageCapInsets: edgeInsets(map["backgroundImageCapInsets"]),
+            iconImage: trimmedName(map["iconImage"])
         )
-        if sheet { config.sheet = sheetAppearance(map["sheet"]) }
+        config.sheet = sheetAppearance(map["sheet"])
         return config == AppearanceConfig() ? nil : config
     }
 
-    // The sheet's fonts, by the name the app registered (UIAppFonts). Blank is none; an unknown name draws the system font.
+    // A font or image name, trimmed. Blank or not a string is none.
+    static func trimmedName(_ raw: Any?) -> String? {
+        guard let value = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
+    // A number (not a Bool) as given; the SDK range-checks it.
+    static func length(_ raw: Any?) -> CGFloat? {
+        guard let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        return CGFloat(number.doubleValue)
+    }
+
+    // left and right are the image's own edges, so they map to leading and trailing. A missing side is 0; a side that
+    // is set but not a length drops the insets, as the SDK does. None set, no insets.
+    static func edgeInsets(_ raw: Any?) -> EdgeInsets? {
+        guard let map = raw as? [String: Any] else { return nil }
+        let values = ["top", "left", "bottom", "right"].map { map[$0].flatMap { $0 is NSNull ? nil : $0 } }
+        guard values.contains(where: { $0 != nil }) else { return nil }
+        var sides: [CGFloat] = []
+        for value in values {
+            guard let value else { sides.append(0); continue }
+            guard let side = length(value) else { return nil }
+            sides.append(side)
+        }
+        return EdgeInsets(top: sides[0], leading: sides[1], bottom: sides[2], trailing: sides[3])
+    }
+
+    // The sheet's fonts, by the name the app registered (UIAppFonts), and its component styles. Blank is none; an
+    // unknown name draws the system font. With neither fonts nor components there is no sheet.
     static func sheetAppearance(_ raw: Any?) -> SheetAppearance? {
         guard let map = raw as? [String: Any] else { return nil }
         func family(_ key: String) -> String? {
             guard let value = (map[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
             return value
         }
-        let sheet = SheetAppearance(headingFontFamily: family("headingFontFamily"), bodyFontFamily: family("bodyFontFamily"))
+        let sheet = SheetAppearance(
+            headingFontFamily: family("headingFontFamily"), bodyFontFamily: family("bodyFontFamily"),
+            components: EncoreSheetComponents.components(from: map["components"])
+        )
         return sheet == SheetAppearance() ? nil : sheet
     }
 
@@ -238,7 +279,7 @@ enum UnitySerialization {
         TriggerLook(
             icon: (options["icon"] as? String).flatMap(TriggerIcon.init(rawValue:)) ?? .gift,
             alignment: alignment(options["alignment"]),
-            appearance: appearance(options["appearance"], sheet: false),
+            appearance: appearance(options["appearance"]),
             publisherReward: publisherReward(options["publisherReward"])
         )
     }
@@ -253,7 +294,7 @@ enum UnitySerialization {
     static func triggerUpdate(_ options: [String: Any]) -> TriggerUpdate {
         TriggerUpdate(
             alignment: options["alignment"] == nil ? nil : alignment(options["alignment"]),
-            appearance: options["appearance"] == nil ? nil : .some(appearance(options["appearance"], sheet: false)),
+            appearance: options["appearance"] == nil ? nil : .some(appearance(options["appearance"])),
             publisherReward: options["publisherReward"] == nil ? nil : .some(publisherReward(options["publisherReward"]))
         )
     }
@@ -263,6 +304,8 @@ enum UnitySerialization {
     }
 
     static func giftsButtonHeight(_ height: Double) -> [String: Any] { ["event": "height", "height": height] }
+
+    static func giftsButtonShowing(_ showing: Bool) -> [String: Any] { ["event": "showing", "showing": showing] }
 
     static func giftsButtonResult(_ result: PresentationResult) -> [String: Any] {
         ["event": "result", "result": presentationResult(result)]
@@ -337,6 +380,7 @@ enum UnitySerialization {
         case .noOffers: return "no_offer_available"
         case .experimentControl: return "experiment_control"
         case .useCaseUnavailable: return "use_case_unavailable"
+        case .disabled: return "disabled"
         case .error: return "error"
         @unknown default: return "unknown"
         }
@@ -362,6 +406,7 @@ enum UnitySerialization {
             "userConfirmedCompletion": offer.userConfirmedCompletion,
         ]
         if let transactionId = offer.transactionId { payload["transactionId"] = transactionId }
+        if let claimURL = offer.claimURL { payload["claimUrl"] = claimURL }
         return payload
     }
 

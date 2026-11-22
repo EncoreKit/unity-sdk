@@ -63,6 +63,8 @@ namespace EncoreKit.Internal
 
         public void SetGiftsButtonVisible(long id, bool visible) => _giftsButton.CallStatic("setVisible", id, visible);
 
+        public void SetGiftsButtonVisibleFraction(long id, double fraction) => _giftsButton.CallStatic("setVisibleFraction", id, fraction);
+
         public void UpdateGiftsButton(long id, string updateJson) => _giftsButton.CallStatic("update", id, updateJson);
 
         public void DestroyGiftsButton(long id) => _giftsButton.CallStatic("destroy", id);

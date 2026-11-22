@@ -1,3 +1,5 @@
+using System;
+using EncoreKit.Internal;
 using UnityEngine;
 
 namespace EncoreKit
@@ -9,13 +11,32 @@ namespace EncoreKit
     {
         [SerializeField] private bool autoOpenOff;
 
+        private GiftsButtonHostState _hostState;
+
         public GiftsButton Button => (GiftsButton)Trigger;
+
+        // Your app's state for this gift, settable any time: before the button exists it goes into its create options.
+        public GiftsButtonHostState HostState
+        {
+            get => _hostState;
+            set
+            {
+                _hostState = value;
+                Button?.SetHostState(value);
+            }
+        }
+
+        // As GiftsButton.ShowingChanged.
+        public event Action<bool> ShowingChanged;
 
         protected override EncoreTrigger CreateTrigger()
         {
             var options = Options<GiftsButtonOptions>();
             options.AutoOpenOff = autoOpenOff;
-            return GiftsButton.Create(Placement, options);
+            options.HostState = _hostState;
+            var button = GiftsButton.Create(Placement, options);
+            button.ShowingChanged += showing => MainThread.Raise(ShowingChanged, showing);
+            return button;
         }
     }
 }

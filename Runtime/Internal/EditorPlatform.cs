@@ -24,6 +24,7 @@ namespace EncoreKit.Internal
 
         public void SetGiftsButtonFrame(long id, float x, float y, float width, float screenWidth, float screenHeight) { }
         public void SetGiftsButtonVisible(long id, bool visible) { }
+        public void SetGiftsButtonVisibleFraction(long id, double fraction) { }
         public void UpdateGiftsButton(long id, string updateJson) { }
         public void DestroyGiftsButton(long id) { }
 

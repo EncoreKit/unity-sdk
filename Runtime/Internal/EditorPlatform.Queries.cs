@@ -6,6 +6,7 @@ namespace EncoreKit.Internal
     internal sealed partial class EditorPlatform
     {
         public void SetClaimEnabled(bool enabled) { }
+        public void SetEnabled(bool enabled) { }
         public void SetPublisherRewardDailyLimit(int dailyLimit) { }
         public void Prefetch(string requestJson) { }
         public void HasOffers(string requestJson, Action<string> onReplyJson) => onReplyJson("{\"hasOffers\":false}");

@@ -21,6 +21,7 @@ namespace EncoreKit.Internal
         [DllImport("__Internal")] private static extern void EncoreUnity_GiftsButtonCreate(long id, string optionsJson, NativeCallback onMessage);
         [DllImport("__Internal")] private static extern void EncoreUnity_GiftsButtonSetFrame(long id, float x, float y, float width, float screenWidth, float screenHeight);
         [DllImport("__Internal")] private static extern void EncoreUnity_GiftsButtonSetVisible(long id, [MarshalAs(UnmanagedType.I1)] bool visible);
+        [DllImport("__Internal")] private static extern void EncoreUnity_GiftsButtonSetVisibleFraction(long id, double fraction);
         [DllImport("__Internal")] private static extern void EncoreUnity_GiftsButtonUpdate(long id, string updateJson);
         [DllImport("__Internal")] private static extern void EncoreUnity_GiftsButtonDestroy(long id);
         [DllImport("__Internal")] private static extern void EncoreUnity_AnswerPurchase(long requestId, string replyJson);
@@ -103,6 +104,8 @@ namespace EncoreKit.Internal
             EncoreUnity_GiftsButtonSetFrame(id, x, y, width, screenWidth, screenHeight);
 
         public void SetGiftsButtonVisible(long id, bool visible) => EncoreUnity_GiftsButtonSetVisible(id, visible);
+
+        public void SetGiftsButtonVisibleFraction(long id, double fraction) => EncoreUnity_GiftsButtonSetVisibleFraction(id, fraction);
 
         public void UpdateGiftsButton(long id, string updateJson) => EncoreUnity_GiftsButtonUpdate(id, updateJson);
 

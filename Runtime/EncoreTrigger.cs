@@ -15,6 +15,10 @@ namespace EncoreKit
         public string Headline;
         public string Subheadline;
         public string Cta;
+        // The headline and subheadline of the sheet a tap opens, as Placement.Headline does; null or blank keeps the sheet's own.
+        // Only the sheet reads them, never the trigger. Android, iOS and WebGL.
+        public string SheetHeadline;
+        public string SheetSubheadline;
         // Your own words and numbers for the look to draw, by the names the look uses.
         public Dictionary<string, string> Values;
         public TriggerIcon Icon = TriggerIcon.Gift;
@@ -41,7 +45,8 @@ namespace EncoreKit
 
         private bool Disposed => Volatile.Read(ref _disposed) != 0;
 
-        // In Unity screen pixels. Zero while there is nothing to show: no offers, a holdout, or an error.
+        // In Unity screen pixels. Zero while there is nothing to show (no offers, a holdout, or an error), and while
+        // the look is presented over the screen (a popup, half sheet or full-screen cover): keep it visible then.
         public float Height { get; private set; }
 
         public event Action<float> HeightChanged;
@@ -94,11 +99,26 @@ namespace EncoreKit
             Log.Contain("SetGiftsButtonVisible", () => _platform.SetGiftsButtonVisible(_id, visible));
         }
 
+        // The share of the trigger the game shows, 0 to 1: above 0 it draws and counts the impression on that share, 0 hides it.
+        // Sent as given, and the native SDK clamps it (NaN counts as fully shown, as natively). WebGL only shows or hides.
+        public void SetVisible(float fraction)
+        {
+            if (Disposed || _platform == null) return;
+            Log.Contain("SetGiftsButtonVisibleFraction", () => _platform.SetGiftsButtonVisibleFraction(_id, fraction));
+        }
+
         // Redraws in place. Null falls back to the look's own text.
         public void SetText(string headline, string subheadline = null, string cta = null)
         {
             if (Disposed || _platform == null) return;
             SendUpdate(Wire.GiftsButtonTextUpdate(headline, subheadline, cta));
+        }
+
+        // For the next sheet a tap opens; redraws nothing. Null or blank keeps the sheet's own text.
+        public void SetSheetText(string headline, string subheadline = null)
+        {
+            if (Disposed || _platform == null) return;
+            SendUpdate(Wire.TriggerSheetTextUpdate(headline, subheadline));
         }
 
         // Redraws in place and leaves the text as it is. On WebGL it mounts the trigger again.
@@ -135,6 +155,18 @@ namespace EncoreKit
             Log.Contain("DestroyGiftsButton", () => _platform.DestroyGiftsButton(_id));
         }
 
+        // An update for a subclass's own setter; nothing after Dispose or with no native trigger.
+        private protected void Update(string updateJson)
+        {
+            if (Disposed || _platform == null) return;
+            SendUpdate(updateJson);
+        }
+
+        // On the main thread, while not disposed. Only the gift button reports it.
+        private protected virtual void OnShowing(bool showing)
+        {
+        }
+
         private void SendUpdate(string updateJson) => Log.Contain("UpdateGiftsButton", () => _platform.UpdateGiftsButton(_id, updateJson));
 
         private void OnMessage(string json)
@@ -145,7 +177,11 @@ namespace EncoreKit
             MainThread.Post(() =>
             {
                 if (Disposed) return;
-                if (m.IsHeight)
+                if (m.IsShowing)
+                {
+                    OnShowing(m.Showing);
+                }
+                else if (m.IsHeight)
                 {
                     if (Mathf.Approximately(m.Height, Height)) return;
                     Height = m.Height;

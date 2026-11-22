@@ -9,6 +9,21 @@ var EncoreUnityQueriesLib = {
     });
   },
 
+  // The web SDK's on/off switch, 2.7.0 and later. C# sends it before Configure too, so a game set off never starts the
+  // SDK. 1 when the bundled SDK now has that value, 0 when off did not take (a bundle older than 2.7.0 has no switch, and
+  // is always on), so C# fails closed instead of starting an SDK it cannot turn off. On is always taken.
+  EncoreUnity_SetEnabled__deps: ['$EncoreUnity'],
+  EncoreUnity_SetEnabled: function (enabled) {
+    var on = !!enabled;
+    var took = EncoreUnity.attempt('SetEnabled', function () {
+      var sdk = EncoreUnity.sdk();
+      if (!sdk || !('isEnabled' in sdk)) return on;
+      sdk.isEnabled = on;
+      return sdk.isEnabled === on;
+    });
+    return took === true ? 1 : 0;
+  },
+
   EncoreUnity_Prefetch__deps: ['$EncoreUnity'],
   EncoreUnity_Prefetch: function (requestJson) {
     EncoreUnity.attempt('Prefetch', function () {
