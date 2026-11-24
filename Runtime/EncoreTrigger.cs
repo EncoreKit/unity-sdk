@@ -64,7 +64,17 @@ namespace EncoreKit
                 Log.Warn($"{GetType().Name} created before Encore.Configure; it shows nothing.");
                 return;
             }
-            var json = Wire.TriggerOptions(triggerId, placement, options ?? new TriggerOptions());
+            string json;
+            try
+            {
+                json = Wire.TriggerOptions(triggerId, placement, options ?? new TriggerOptions());
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // A use case the bridges do not know: fail closed, as EncoreClaim does.
+                Log.Warn($"{GetType().Name} has a use case the native SDKs do not know; it shows nothing.");
+                return;
+            }
             if (Log.Contain("CreateGiftsButton", () => platform.CreateGiftsButton(_id, json, OnMessage))) _platform = platform;
             // A create that failed part way may have left a view or an entry behind: remove it.
             else Log.Contain("DestroyGiftsButton", () => platform.DestroyGiftsButton(_id));

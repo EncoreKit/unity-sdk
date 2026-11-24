@@ -1,6 +1,6 @@
 {
   "name": "com.encorekit.unity",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "displayName": "Encore",
   "description": "Encore for Unity. A C# API over the native Encore Android and iOS SDKs, and the Encore web SDK for WebGL.",
   "unity": "2022.3",

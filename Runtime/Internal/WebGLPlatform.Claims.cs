@@ -50,7 +50,7 @@ namespace EncoreKit.Internal
         [MonoPInvokeCallback(typeof(JsCallback))]
         private static void OnClaimMessage(int id, IntPtr json)
         {
-            if (Claims.TryGetValue(id, out var handler)) handler(Marshal.PtrToStringUTF8(json));
+            if (Claims.TryGetValue(id, out var handler)) Deliver(handler, json);
         }
     }
 }

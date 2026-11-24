@@ -157,7 +157,7 @@ namespace EncoreKit.Internal
             {
                 json.Field("fontFamily", Font(a.FontFamily));
                 json.Field("countdownFontFamily", Font(a.CountdownFontFamily));
-                json.Number("cornerRadius", Finite(a.CornerRadius));
+                json.Number("cornerRadius", a.CornerRadius);
                 // An unknown value is unset, as for the other enums here.
                 json.Field("shadow", a.Shadow switch
                 {
@@ -166,7 +166,7 @@ namespace EncoreKit.Internal
                     EncoreShadow.Strong => "strong",
                     _ => null,
                 });
-                json.Number("borderWidth", Finite(a.BorderWidth));
+                json.Number("borderWidth", a.BorderWidth);
                 json.Field("borderColor", a.BorderColor);
                 json.Field("backgroundImage", Font(a.BackgroundImage));
                 // JSON cannot carry a non-finite side, so it drops the insets, as natively. The SDK range-checks the rest.
@@ -616,8 +616,8 @@ namespace EncoreKit.Internal
             return json.IsEmpty ? null : json.ToString();
         }
 
-        // Writes one flat object; null values are left out.
-        private sealed class JsonWriter
+        // Writes one flat object; null values, and numbers JSON cannot carry (NaN, infinity), are left out.
+        internal sealed class JsonWriter
         {
             private readonly StringBuilder _sb = new StringBuilder("{");
             private bool _first = true;
@@ -632,7 +632,7 @@ namespace EncoreKit.Internal
 
             public void Number(string key, float? value)
             {
-                if (key == null || !value.HasValue) return;
+                if (key == null || !value.HasValue || float.IsNaN(value.Value) || float.IsInfinity(value.Value)) return;
                 Raw(key, value.Value.ToString("R", CultureInfo.InvariantCulture));
             }
 

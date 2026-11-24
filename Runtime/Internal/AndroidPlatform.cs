@@ -24,7 +24,8 @@ namespace EncoreKit.Internal
 
             public Callback(Action<string> onMessage) : base(CallbackInterface) => _onMessage = onMessage;
 
-            // Called by name from Java, so code stripping must keep it.
+            // Called by name from Java, so code stripping must keep it. No catch here: Kotlin's deliver catches a throw
+            // and needs to see it, because a purchase request C# did not take must fail at once.
             [UnityEngine.Scripting.Preserve]
             public void onMessage(string json) => _onMessage(json);
         }

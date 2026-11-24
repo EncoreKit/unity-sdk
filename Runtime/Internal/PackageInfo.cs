@@ -5,6 +5,6 @@ namespace EncoreKit.Internal
     internal static class PackageInfo
     {
         internal const string Name = "unity";
-        internal const string Version = "2.8.0";
+        internal const string Version = "2.8.1";
     }
 }

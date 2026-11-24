@@ -82,17 +82,19 @@ namespace EncoreKit.Internal
         {
             if (!Pending.TryGetValue(requestId, out var callback)) return;
             Pending.Remove(requestId);
-            callback(Marshal.PtrToStringUTF8(json));
+            Deliver(callback, json);
         }
 
         [MonoPInvokeCallback(typeof(JsCallback))]
         private static void OnGiftsButtonMessage(int id, IntPtr json)
         {
-            if (GiftsButtons.TryGetValue(id, out var handler)) handler(Marshal.PtrToStringUTF8(json));
+            if (GiftsButtons.TryGetValue(id, out var handler)) Deliver(handler, json);
         }
 
         [MonoPInvokeCallback(typeof(JsCallback))]
-        private static void OnOutcome(int requestId, IntPtr json) => _onOutcome?.Invoke(Marshal.PtrToStringUTF8(json));
+        private static void OnOutcome(int requestId, IntPtr json) => Deliver(_onOutcome, json);
+
+        private static void Deliver(Action<string> handler, IntPtr json) => Log.Deliver("WebGL callback", handler, json);
 
         public void AnswerPurchase(long requestId, string replyJson) { }
 

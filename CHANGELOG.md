@@ -4,6 +4,23 @@ All notable changes to `com.encorekit.unity`. `make release` turns the Unrelease
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-24
+
+### Changed
+
+- Native pins: `com.encorekit:encore` 2.8.0 and the `EncoreKit` 2.8.1 pod.
+
+### Fixed
+
+- iOS (from EncoreKit 2.8.1): a trigger look's motion now runs. Before, an element with an entrance stayed at its
+  starting pose, so a look whose picture fades in from transparent drew no picture, and loops and marquees stood still.
+- A `UseCase` outside the enum gives a hidden trigger or claim and a warning (from `LogLevel.Warn`) instead of an
+  exception. `GiftsButton.Create`, `ClaimReminder.Create` and `EncoreTrigger.Create` threw; `Encore.Claim` stayed
+  hidden without saying why. Android, iOS and WebGL.
+- A throw in an iOS or WebGL native callback is contained and reported, and never unwinds into the native frame that
+  called back. Android already contained it in the Kotlin bridge.
+- A NaN or an infinity is left out of the bridge JSON instead of being written as `NaN`, which no bridge could read.
+
 ## [2.8.0] - 2026-11-22
 
 ### Added

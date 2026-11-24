@@ -143,6 +143,7 @@ namespace EncoreKit
             catch (ArgumentOutOfRangeException)
             {
                 // A use case the bridges do not know: fail closed.
+                Log.Warn("EncoreClaim has a use case the native SDKs do not know; it stays hidden.");
                 return;
             }
             if (Log.Contain("ClaimCreate", () => platform.ClaimCreate(_id, json, OnMessage))) _platform = platform;

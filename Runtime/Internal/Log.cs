@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace EncoreKit.Internal
@@ -59,5 +60,11 @@ namespace EncoreKit.Internal
                 return false;
             }
         }
+
+        // Every native callback goes through here: a throw that unwinds into the native frame that called back crashes the game.
+        internal static void Deliver(string where, Action<string> handler, IntPtr json) =>
+            Contain(where, () => handler?.Invoke(Marshal.PtrToStringUTF8(json)));
+
+        internal static void Deliver(string where, Action<string> handler, string json) => Contain(where, () => handler?.Invoke(json));
     }
 }

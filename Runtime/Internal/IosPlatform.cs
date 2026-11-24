@@ -77,18 +77,7 @@ namespace EncoreKit.Internal
             Deliver(callback, json);
         }
 
-        // A throw must never unwind into the Swift frame that called back, because that crashes the game.
-        private static void Deliver(Action<string> handler, IntPtr json)
-        {
-            try
-            {
-                handler?.Invoke(Marshal.PtrToStringUTF8(json));
-            }
-            catch (Exception e)
-            {
-                Log.Contained("iOS callback", e);
-            }
-        }
+        private static void Deliver(Action<string> handler, IntPtr json) => Log.Deliver("iOS callback", handler, json);
 
         // Gift buttons live until destroyed, so their handlers stay registered by id rather than in Pending.
         private static readonly NativeCallback GiftsButtonCallback = OnGiftsButtonMessage;
